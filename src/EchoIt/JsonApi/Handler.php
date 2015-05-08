@@ -367,6 +367,7 @@ abstract class Handler
     protected function parseRequestContent($content, $type)
     {
         $content = json_decode($content, true);
+
         if (empty($content['data'])) {
             throw new Exception(
                 'Payload either contains misformed JSON or missing "data" parameter.',
@@ -391,8 +392,40 @@ abstract class Handler
             );
         }
         unset($data['type']);
+        unset($data['links']);
 
         return $data;
+    }
+
+    /**
+     * Returns true if relations array is associative (toOne) or numeric (toMany)
+     *
+     * @param  Array  $array [description]
+     * @return [type]        [description]
+     */
+    protected function relationArrayIsAssoc(Array $array)
+    {
+        return (bool)count(array_filter(array_keys($array), 'is_string'));
+    }
+
+    /**
+     * Parses links section from request into array
+     *
+     * @param  string $content
+     * @param  string $type the type the content is expected to be.
+     * @return array
+     */
+    protected function parseRequestLinks($content, $type)
+    {
+        $content = json_decode($content, true);
+        $content = $content['data'];
+
+        if (!isset($content['links']) || empty($content['links'])) {
+            return array();
+        } else {
+            return $content['links'];
+        }
+
     }
 
     /**
@@ -487,6 +520,29 @@ abstract class Handler
     }
 
     /**
+     * Identify is a linkage object is valid
+     *
+     * @param  Array  $array passed linkage object
+     * @return bool          true is linkage is valid
+     */
+    protected function linkageIsValid(Array $array)
+    {
+        if (!isset($array['linkage'])) {
+            return false;
+        }
+        $array = $array['linkage'];
+
+        if (!isset($array['type'])) {
+            return false;
+        }
+
+        if (!isset($array['id'])) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Default handling of POST request.
      * Must be called explicitly in handlePost function.
      *
@@ -499,6 +555,34 @@ abstract class Handler
         $values = $this->parseRequestContent($request->content, $model->getResourceType());
         $model->fill($values);
 
+        $links = $this->parseRequestLinks($request->content, $model->getResourceType());
+
+        // save any belongsTo
+        foreach ($links as $key => $relation) {
+
+            // toOne relations should be saved to model at this point
+            if ($this->relationArrayIsAssoc($relation))
+            {
+                if (!$this->linkageIsValid($relation))
+                {
+                    throw new Exception(
+                        'Linkage item is malformed.',
+                        static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
+                        BaseResponse::HTTP_BAD_REQUEST
+                    );
+                }
+                $type = $relation['linkage']['type'];
+
+
+                // validate the relationship
+                $className = get_class($model->{$type}()->getRelated());
+                $rel = $className::find($relation['linkage']['id']);
+
+                $model->{$type}()->associate($rel);
+            }
+
+        }
+
         if (!$model->save()) {
             throw new Exception(
                 'An unknown error occurred',
@@ -506,6 +590,8 @@ abstract class Handler
                 BaseResponse::HTTP_INTERNAL_SERVER_ERROR
             );
         }
+
+        // save any relations if they exist
 
         return $model;
     }
