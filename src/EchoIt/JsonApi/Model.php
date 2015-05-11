@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model as BaseModel;
+use Illuminate\Database\Eloquent\Relations\Pivot as Pivot;
 
 /**
  * This class is used to extend models from, that will be exposed through
@@ -17,6 +18,8 @@ class Model extends \Eloquent
      * @var array
      */
     protected $guarded = ['id', 'created_at', 'updated_at'];
+
+    protected $exposed_relations = [];
 
     /**
      * Has this model been changed inother ways than those
@@ -76,8 +79,17 @@ class Model extends \Eloquent
     public function toArray()
     {
         $relations = [];
+
+        foreach ($this->exposed_relations as $relation) {
+            $this->load($relation);
+        }
+
         foreach ($this->getArrayableRelations() as $relation => $value) {
             if (in_array($relation, $this->hidden)) {
+                continue;
+            }
+
+            if ($value instanceof Pivot) {
                 continue;
             }
 

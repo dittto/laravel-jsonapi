@@ -1,4 +1,5 @@
-<?php namespace EchoIt\JsonApi;
+<?php
+namespace EchoIt\JsonApi;
 
 use Illuminate\Support\Collection;
 use Illuminate\Pagination\Paginator;
@@ -38,7 +39,7 @@ abstract class Handler
      *
      * @param JsonApi\Request $request
      */
-    public function __construct(Request $request)
+    public function __construct($request)
     {
         $this->request = $request;
     }
@@ -61,7 +62,7 @@ abstract class Handler
      */
     public function fulfillRequest()
     {
-        if (! $this->supportsMethod($this->request->method)) {
+        if (! $this->supportsMethod($this->request->method())) {
             throw new Exception(
                 'Method not allowed',
                 static::ERROR_SCOPE | static::ERROR_HTTP_METHOD_NOT_ALLOWED,
@@ -69,8 +70,8 @@ abstract class Handler
             );
         }
 
-        $methodName = static::methodHandlerName($this->request->method);
-        $models = $this->{$methodName}($this->request);
+        $methodName = static::methodHandlerName($this->request->method());
+        $models = $this->{$methodName}();
 
         if (is_null($models)) {
             throw new Exception(
@@ -88,7 +89,7 @@ abstract class Handler
                 $model->load($this->exposedRelationsFromRequest());
             }
 
-            $response = new Response($items, static::successfulHttpStatusCode($this->request->method));
+            $response = new Response($items, static::successfulHttpStatusCode($this->request->method()));
 
             $response->links = $this->getPaginationLinks($models);
             $response->included = $this->getIncludedModels($items);
@@ -101,8 +102,7 @@ abstract class Handler
             } else {
                 $models->load($this->exposedRelationsFromRequest());
             }
-
-            $response = new Response($models, static::successfulHttpStatusCode($this->request->method, $models));
+            $response = new Response($models, static::successfulHttpStatusCode($this->request->method(), $models));
 
             $response->included = $this->getIncludedModels($models);
             $response->errors = $this->getNonBreakingErrors();
@@ -358,41 +358,42 @@ abstract class Handler
     }
 
     /**
-     * Parses content from request into an array of values.
+     * Returns true if relations array is associative (toOne) or numeric (toMany)
      *
-     * @param  string $content
-     * @param  string $type the type the content is expected to be.
-     * @return array
+     * @param  Array  $array [description]
+     * @return [type]        [description]
      */
-    protected function parseRequestContent($content, $type)
+    protected function relationArrayIsAssoc(Array $array)
     {
-        $content = json_decode($content, true);
-        if (empty($content['data'])) {
-            throw new Exception(
-                'Payload either contains misformed JSON or missing "data" parameter.',
-                static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
-                BaseResponse::HTTP_BAD_REQUEST
-            );
-        }
+        return (bool)count(array_filter(array_keys($array), 'is_string'));
+    }
 
-        $data = $content['data'];
-        if (!isset($data['type'])) {
-            throw new Exception(
-                '"type" parameter not set in request.',
-                static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
-                BaseResponse::HTTP_BAD_REQUEST
-            );
-        }
-        if ($data['type'] !== $type) {
-            throw new Exception(
-                '"type" parameter is not valid. Expecting ' . $type,
-                static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
-                BaseResponse::HTTP_CONFLICT
-            );
-        }
-        unset($data['type']);
+    /**
+     * Identifies a toOne relation
+     *
+     * Semantically defines if a passed array of data represents a relation
+     * of type toOne
+     *
+     * @param  Array   $array passed data
+     * @return boolean        true if identified as toOne
+     */
+    protected function isToOneRelation(Array $array)
+    {
+        return $this->relationArrayIsAssoc($array);
+    }
 
-        return $data;
+    /**
+     * Identifies a toMany relation
+     *
+     * Semantically defines if a passed array of data represents a relation
+     * of type toMany
+     *
+     * @param  Array   $array passed data
+     * @return boolean        true if identified as toOne
+     */
+    protected function isToManyRelation(Array $array)
+    {
+        return !$this->relationArrayIsAssoc($array);
     }
 
     /**
@@ -447,14 +448,18 @@ abstract class Handler
      * Default handling of GET request.
      * Must be called explicitly in handleGet function.
      *
-     * @param  EchoIt\JsonApi\Request $request
      * @param  EchoIt\JsonApi\Model $model
      * @return EchoIt\JsonApi\Model|Illuminate\Pagination\LengthAwarePaginator
      */
-    protected function handleGetDefault(Request $request, $model)
+    protected function handleGetDefault($model)
     {
         $total = null;
-        if (empty($request->id)) {
+        $request = $this->request;
+
+        $id = $request->route('id');
+
+        if (empty($id)) {
+
             if (!empty($request->filter)) {
                 $model = $this->handleFilterRequest($request->filter, $model);
             }
@@ -466,11 +471,11 @@ abstract class Handler
                 $model = $this->handleSortRequest($request->sort, $model);
             }
         } else {
-            $model = $model->where('id', '=', $request->id);
+            $model = $model->where('id', '=', $id);
         }
 
         try {
-            if ($request->pageNumber && empty($request->id)) {
+            if ($request->pageNumber && empty($id)) {
                 $results = $this->handlePaginationRequest($request, $model, $total);
             } else {
                 $results = $model->get();
@@ -487,17 +492,70 @@ abstract class Handler
     }
 
     /**
+     * Identify is a linkage object is valid
+     *
+     * @param  Array  $array passed linkage object
+     * @return bool          true is linkage is valid
+     */
+    protected function linkageIsValid(Array $array)
+    {
+        if (!isset($array['linkage'])) {
+            return false;
+        }
+        $array = $array['linkage'];
+
+        if (!isset($array['type'])) {
+            return false;
+        }
+
+        if (!isset($array['id'])) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Default handling of POST request.
      * Must be called explicitly in handlePost function.
      *
-     * @param  EchoIt\JsonApi\Request $request
      * @param  EchoIt\JsonApi\Model $model
      * @return EchoIt\JsonApi\Model
      */
-    public function handlePostDefault(Request $request, $model)
+    public function handlePostDefault($model)
     {
-        $values = $this->parseRequestContent($request->content, $model->getResourceType());
+        $values = $this->request->parseData($model->getResourceType());
         $model->fill($values);
+
+        $links = $this->request->parseLinks($model->getResourceType());
+
+        // save any belongsTo
+        foreach ($links as $key => $relation) {
+
+            // toOne relations should be saved to model at this point
+            if ($this->isToOneRelation($relation['linkage']))
+            {
+                if (!$this->linkageIsValid($relation))
+                {
+                    throw new Exception(
+                        'Linkage item is malformed.',
+                        static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
+                        BaseResponse::HTTP_BAD_REQUEST
+                    );
+                }
+                $type = $relation['linkage']['type'];
+
+
+                // validate the relationship
+                $className = get_class($model->{$type}()->getRelated());
+                $rel = $className::find($relation['linkage']['id']);
+
+                $model->{$type}()->associate($rel);
+
+                // unset this link key so its not attempted to be reprocessed
+                unset($links[$key]);
+            }
+
+        }
 
         if (!$model->save()) {
             throw new Exception(
@@ -507,6 +565,16 @@ abstract class Handler
             );
         }
 
+        // save any toMany relations if they exist
+        foreach ($links as $key => $relation) {
+
+            if ($this->isToManyRelation($relation))
+            {
+
+            }
+
+        }
+
         return $model;
     }
 
@@ -514,13 +582,12 @@ abstract class Handler
      * Default handling of PUT request.
      * Must be called explicitly in handlePut function.
      *
-     * @param  EchoIt\JsonApi\Request $request
      * @param  EchoIt\JsonApi\Model $model
      * @return EchoIt\JsonApi\Model
      */
-    public function handlePutDefault(Request $request, $model)
+    public function handlePutDefault($model)
     {
-        if (empty($request->id)) {
+        if (empty($this->request->id)) {
             throw new Exception(
                 'No ID provided',
                 static::ERROR_SCOPE | static::ERROR_NO_ID,
@@ -528,9 +595,9 @@ abstract class Handler
             );
         }
 
-        $updates = $this->parseRequestContent($request->content, $model->getResourceType());
+        $updates = $this->request->parseData($model->getResourceType());
 
-        $model = $model::find($request->id);
+        $model = $model::find($this->request->id);
         if (is_null($model)) {
             return null;
         }
@@ -569,13 +636,12 @@ abstract class Handler
      * Default handling of DELETE request.
      * Must be called explicitly in handleDelete function.
      *
-     * @param  EchoIt\JsonApi\Request $request
      * @param  EchoIt\JsonApi\Model $model
      * @return EchoIt\JsonApi\Model
      */
-    public function handleDeleteDefault(Request $request, $model)
+    public function handleDeleteDefault($model)
     {
-        if (empty($request->id)) {
+        if (empty($this->request->id)) {
             throw new Exception(
                 'No ID provided',
                 static::ERROR_SCOPE | static::ERROR_NO_ID,
@@ -583,7 +649,7 @@ abstract class Handler
             );
         }
 
-        $model = $model::find($request->id);
+        $model = $model::find($this->request->id);
         if (is_null($model)) {
             return null;
         }
