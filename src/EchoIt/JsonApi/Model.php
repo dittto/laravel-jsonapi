@@ -40,6 +40,14 @@ class Model extends \Eloquent
     protected $resourceType = null;
 
     /**
+     * Expose the resource relations links by default when viewing a
+     * resource
+     *
+     * @var  array
+     */
+    protected $exposedRelations = [];
+
+    /**
      * mark this model as changed
      *
      * @return  void
@@ -80,7 +88,8 @@ class Model extends \Eloquent
     {
         $relations = [];
 
-        foreach ($this->exposed_relations as $relation) {
+        // include any relations exposed by default
+       foreach ($this->exposedRelations as $relation) {
             $this->load($relation);
         }
 
@@ -106,8 +115,14 @@ class Model extends \Eloquent
         }
 
         //add type parameter
-        $attributes = $this->attributesToArray();
-        $attributes['type'] = $this->getResourceType();
+        $model_attributes = $this->attributesToArray();
+        unset($model_attributes[$this->primaryKey]);
+
+        $attributes = [
+            'id'         => $this->getKey(),
+            'type'       => $this->getResourceType(),
+            'attributes' => $model_attributes
+        ];
 
         if (! count($relations)) {
             return $attributes;
