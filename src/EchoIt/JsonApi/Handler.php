@@ -528,22 +528,17 @@ abstract class Handler
     }
 
     /**
-     * Default handling of POST request.
-     * Must be called explicitly in handlePost function.
+     * Saves any toOne relations and removes the from the links array
      *
-     * @param  EchoIt\JsonApi\Model $model
-     * @return EchoIt\JsonApi\Model
+     * @param  Illuminate\Database\Eloquent\Model $model model against which to save toOne associations
+     * @param  array                              $links associative array of links data
+     *
+     * @return array                                     associative array of links data with any saved links removed
      */
-    public function handlePostDefault($model)
+    protected function _saveAndRemoveToOneRelations($model, $links)
     {
-        $values = $this->request->parseData($model->getResourceType());
-        $model->fill($values);
-
-        $links = $this->request->parseLinks($model->getResourceType());
-
-        // save any belongsTo
-        foreach ($links as $key => $relation) {
-
+        foreach ($links as $key => $relation)
+        {
             // toOne relations should be saved to model at this point
             if ($this->isToOneRelation($relation['linkage']))
             {
@@ -567,20 +562,22 @@ abstract class Handler
                 // unset this link key so its not attempted to be reprocessed
                 unset($links[$key]);
             }
-
         }
+        return $links;
+    }
 
-        if (!$model->save()) {
-            throw new Exception(
-                'An unknown error occurred',
-                static::ERROR_SCOPE | static::ERROR_UNKNOWN,
-                BaseResponse::HTTP_INTERNAL_SERVER_ERROR
-            );
-        }
-
-        // save any toMany relations if they exist
-        foreach ($links as $key => $relation) {
-
+    /**
+     * Saves any toMany relations and removes the from the links array
+     *
+     * @param  Illuminate\Database\Eloquent\Model $model model against which to save toOne associations
+     * @param  array                              $links associative array of links data
+     *
+     * @return array                                     associative array of links data with any saved links removed
+     */
+    protected function _saveAndRemoveToManyRelations($model, $links)
+    {
+        foreach ($links as $key => $relation)
+        {
             if ($this->isToManyRelation($relation['linkage']))
             {
                 if (!$this->linkageIsValid($relation))
@@ -595,9 +592,39 @@ abstract class Handler
                 foreach ($relation['linkage'] as $link) {
                     $model->{$key}()->attach($link['id']);
                 }
+                unset($links[$key]);
             }
-
         }
+        return $links;
+    }
+
+    /**
+     * Default handling of POST request.
+     * Must be called explicitly in handlePost function.
+     *
+     * @param  EchoIt\JsonApi\Model $model
+     * @return EchoIt\JsonApi\Model
+     */
+    public function handlePostDefault($model)
+    {
+        $values = $this->request->parseData($model->getResourceType());
+        $model->fill($values);
+
+        $links = $this->request->parseLinks($model->getResourceType());
+
+        // save any belongsTo
+        $links = $this->_saveAndRemoveToOneRelations($model, $links);
+
+        if (!$model->save()) {
+            throw new Exception(
+                'An unknown error occurred',
+                static::ERROR_SCOPE | static::ERROR_UNKNOWN,
+                BaseResponse::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
+
+        // save any toMany relations if they exist
+        $links = $this->_saveAndRemoveToManyRelations($model, $links);
 
         return $model;
     }
