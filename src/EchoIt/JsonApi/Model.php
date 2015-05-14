@@ -19,8 +19,6 @@ class Model extends \Eloquent
      */
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
-    protected $exposed_relations = [];
-
     /**
      * Has this model been changed inother ways than those
      * specified by the request
