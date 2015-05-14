@@ -504,12 +504,25 @@ abstract class Handler
         }
         $array = $array['linkage'];
 
-        if (!isset($array['type'])) {
-            return false;
-        }
+        if ($this->relationArrayIsAssoc($array))
+        {
+            if (!isset($array['type'])) {
+                return false;
+            }
 
-        if (!isset($array['id'])) {
-            return false;
+            if (!isset($array['id'])) {
+                return false;
+            }
+        } else {
+            foreach ($array as $link) {
+                if (!isset($link['type'])) {
+                    return false;
+                }
+
+                if (!isset($link['id'])) {
+                    return false;
+                }
+            }
         }
         return true;
     }
@@ -568,9 +581,20 @@ abstract class Handler
         // save any toMany relations if they exist
         foreach ($links as $key => $relation) {
 
-            if ($this->isToManyRelation($relation))
+            if ($this->isToManyRelation($relation['linkage']))
             {
+                if (!$this->linkageIsValid($relation))
+                {
+                    throw new Exception(
+                        'Linkage item is malformed.',
+                        static::ERROR_SCOPE | static::ERROR_INVALID_ATTRS,
+                        BaseResponse::HTTP_BAD_REQUEST
+                    );
+                }
 
+                foreach ($relation['linkage'] as $link) {
+                    $model->{$key}()->attach($link['id']);
+                }
             }
 
         }
