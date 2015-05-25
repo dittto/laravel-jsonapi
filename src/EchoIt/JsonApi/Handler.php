@@ -108,6 +108,11 @@ abstract class Handler
             $response->errors = $this->getNonBreakingErrors();
         }
 
+        if ($this->request->route('id'))
+        {
+            $response->setBodySingular();
+        }
+
         return $response;
     }
 
@@ -571,10 +576,11 @@ abstract class Handler
      *
      * @param  Illuminate\Database\Eloquent\Model $model model against which to save toOne associations
      * @param  array                              $links associative array of links data
+     * @param  bool                               $sync  set to true to synchronise toMany asssociated (i.e. remove any missing)
      *
      * @return array                                     associative array of links data with any saved links removed
      */
-    protected function _saveAndRemoveToManyRelations($model, $links)
+    protected function _saveAndRemoveToManyRelations($model, $links, $sync = false)
     {
         foreach ($links as $key => $relation)
         {
@@ -589,8 +595,17 @@ abstract class Handler
                     );
                 }
 
-                foreach ($relation['linkage'] as $link) {
-                    $model->{$key}()->attach($link['id']);
+                if ($sync)
+                {
+                    $ids = [];
+                    foreach ($relation['linkage'] as $link) {
+                        $ids[] = $link['id'];
+                    }
+                    $model->{$key}()->sync($ids);
+                } else {
+                    foreach ($relation['linkage'] as $link) {
+                        $model->{$key}()->attach($link['id']);
+                    }
                 }
                 unset($links[$key]);
             }
@@ -638,7 +653,8 @@ abstract class Handler
      */
     public function handlePutDefault($model)
     {
-        if (empty($this->request->id)) {
+        $id = $this->request->route('id');
+        if (empty($id)) {
             throw new Exception(
                 'No ID provided',
                 static::ERROR_SCOPE | static::ERROR_NO_ID,
@@ -647,8 +663,9 @@ abstract class Handler
         }
 
         $updates = $this->request->parseData($model->getResourceType());
+        $links = $this->request->parseLinks($model->getResourceType());
 
-        $model = $model::find($this->request->id);
+        $model = $model::find($id);
         if (is_null($model)) {
             return null;
         }
@@ -659,6 +676,9 @@ abstract class Handler
         // apply our updates
         $model->fill($updates);
 
+        // save any belongsTo
+        $links = $this->_saveAndRemoveToOneRelations($model, $links);
+
         // ensure we can get a succesful save
         if (!$model->save()) {
             throw new Exception(
@@ -667,6 +687,8 @@ abstract class Handler
                 BaseResponse::HTTP_INTERNAL_SERVER_ERROR
             );
         }
+
+        $links = $this->_saveAndRemoveToManyRelations($model, $links, true);
 
         // fetch the current attributes (post save)
         $newAttributes = $model->getAttributes();

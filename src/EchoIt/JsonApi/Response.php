@@ -31,6 +31,13 @@ class Response
     protected $httpStatusCode;
 
     /**
+     * Body Singular
+     *
+     * @var  bool true to set body as a single primary entity
+     */
+    protected $singularBodyElement = False;
+
+    /**
      * Constructor
      *
      * @param array|object $body
@@ -57,6 +64,18 @@ class Response
     }
 
     /**
+     * Set body singular
+     *
+     * Flag that the response body should be a single element as opposed to a collection
+     *
+     * @return  null
+     */
+    public function setBodySingular()
+    {
+        $this->singularBodyElement = True;
+    }
+
+    /**
      * Returns a JsonResponse with the set parameters and body.
      *
      * @param  string $bodyKey The key on which to set the main response.
@@ -64,6 +83,8 @@ class Response
      */
     public function toJsonResponse($bodyKey = 'data', $options = 0)
     {
+        $this->body = ($this->singularBodyElement && count($this->body) === 1) ? $this->body->first() : $this->body;
+
         return new JsonResponse(array_merge(
             [ $bodyKey => $this->body ],
             array_filter($this->responseData)
