@@ -83,8 +83,7 @@ class Response
      */
     public function toJsonResponse($bodyKey = 'data', $options = 0)
     {
-        if (count($this->body) === 1)
-        {
+        if ($this->singularBodyElement) {
             $this->body = $this->body->first();
         }
 

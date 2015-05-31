@@ -102,13 +102,14 @@ abstract class Handler
             } else {
                 $this->loadRelatedModels($models);
             }
+
             $response = new Response($models, static::successfulHttpStatusCode($this->request->method(), $models));
 
             $response->included = $this->getIncludedModels($models);
             $response->errors = $this->getNonBreakingErrors();
         }
 
-        if ($this->request->route('id'))
+        if ($this->request->method() == 'GET' && $this->request->route('id'))
         {
             $response->setBodySingular();
         }
