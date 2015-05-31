@@ -109,11 +109,6 @@ abstract class Handler
             $response->errors = $this->getNonBreakingErrors();
         }
 
-        if ($this->request->method() == 'GET' && $this->request->route('id'))
-        {
-            $response->setBodySingular();
-        }
-
         return $response;
     }
 
@@ -534,6 +529,12 @@ abstract class Handler
                 array('details' => $e->getMessage())
             );
         }
+
+        if (!empty($id) && $results instanceof Collection)
+        {
+            $results = $results->first();
+        }
+
         return $results;
     }
 
