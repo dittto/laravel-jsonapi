@@ -83,7 +83,10 @@ class Response
      */
     public function toJsonResponse($bodyKey = 'data', $options = 0)
     {
-        $this->body = ($this->singularBodyElement && count($this->body) === 1) ? $this->body->first() : $this->body;
+        if (count($this->body) === 1)
+        {
+            $this->body = $this->body->first();
+        }
 
         return new JsonResponse(array_merge(
             [ $bodyKey => $this->body ],
