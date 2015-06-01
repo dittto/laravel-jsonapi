@@ -601,10 +601,10 @@ abstract class Handler
 
 
                 // validate the relationship
-                $className = get_class($model->{$type}()->getRelated());
+                $className = get_class($model->{$key}()->getRelated());
                 $rel = $className::find($relation['linkage']['id']);
 
-                $model->{$type}()->associate($rel);
+                $model->{$key}()->associate($rel);
 
                 // unset this link key so its not attempted to be reprocessed
                 unset($links[$key]);
