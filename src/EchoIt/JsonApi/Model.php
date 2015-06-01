@@ -153,6 +153,11 @@ class Model extends \Eloquent
         return [];
     }
 
+    public function getPlural()
+    {
+        return \str_plural($this->resourceType);
+    }
+
     /**
      * Convert the model instance to an array. This method overrides that of
      * Eloquent to prevent relations to be serialize into output array.
@@ -185,6 +190,7 @@ class Model extends \Eloquent
 
         // add the relations to the linked array
         foreach ($arrayableRelations as $relation => $value) {
+
             if (in_array($relation, $this->hidden)) {
                 continue;
             }
@@ -196,10 +202,18 @@ class Model extends \Eloquent
             if ($value instanceof BaseModel) {
                 $relations[$relation] = array('linkage' => array('id' => $value->getKey(), 'type' => $value->getResourceType()));
             } elseif ($value instanceof Collection) {
-                $relation = \str_plural($relation);
+
+                $first = true;
                 $items = ['linkage' => []];
                 foreach ($value as $item) {
+
+                    if ($first) {
+                        // determine the plural name for the relation
+                        $relation = $item->getPlural();
+                    }
+
                     $items['linkage'][] = array('id' => $item->getKey(), 'type' => $item->getResourceType());
+                    $first = false;
                 }
                 $relations[$relation] = $items;
             }
