@@ -213,6 +213,7 @@ class Model extends \Eloquent
         //add type parameter
         $model_attributes = $this->attributesToArray();
         unset($model_attributes[$this->primaryKey]);
+        unset($model_attributes['type']);
 
         $attributes = [
             'id'         => $this->getKey(),
