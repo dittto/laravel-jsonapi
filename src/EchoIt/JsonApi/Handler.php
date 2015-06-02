@@ -86,7 +86,7 @@ abstract class Handler
         } elseif ($models instanceof LengthAwarePaginator) {
             $items = new Collection($models->items());
             foreach ($items as $model) {
-                $this->loadRelatedModels($model);
+                $models->load($this->exposedRelationsFromRequest());
             }
 
             $response = new Response($items, static::successfulHttpStatusCode($this->request->method()));
@@ -97,10 +97,10 @@ abstract class Handler
         } else {
             if ($models instanceof Collection) {
                 foreach ($models as $model) {
-                    $this->loadRelatedModels($model);
+                    $models->load($this->exposedRelationsFromRequest());
                 }
             } else {
-                $this->loadRelatedModels($models);
+                $models->load($this->exposedRelationsFromRequest());
             }
 
             $response = new Response($models, static::successfulHttpStatusCode($this->request->method(), $models));
@@ -140,25 +140,8 @@ abstract class Handler
      */
     protected function exposedRelationsFromRequest($model = null)
     {
-        $exposedRelations = static::$exposedRelations;
-
-        // if no relations are to be included by request
-        if (count($this->request->include) == 0) {
-            // and if we have a model
-            if ($model !== null && $model instanceof Model) {
-                // then use the relations exposed by default
-                $exposedRelations = array_intersect($exposedRelations, $model->defaultExposedRelations());
-                $model->setExposedRelations($exposedRelations);
-                return $exposedRelations;
-            }
-
-        }
-
-        $exposedRelations = array_intersect($exposedRelations, $this->request->include);
-        if ($model !== null && $model instanceof Model) {
-            $model->setExposedRelations($exposedRelations);
-        }
-
+        // only allow exposure to relations enabled via the handler
+        $exposedRelations = array_intersect(static::$exposedRelations, $this->request->include);
         return $exposedRelations;
     }
 
