@@ -462,8 +462,21 @@ abstract class Handler
      */
     protected function handleFilterRequest($filters, $model)
     {
-        foreach ($filters as $key=>$value) {
-            $model = $model->where($key, '=', $value);
+        foreach ($filters as $key => $value) {
+
+            // auto handle start and end date based filtering
+            if (substr($key, -6) == '_start')
+            {
+                $model = $model->where(substr($key, 0, -6), '>', $value);
+            }
+            else if (substr($key, -4) == '_end')
+            {
+                $model = $model->where(substr($key, 0, -4), '<=', $value);
+            }
+            else
+            {
+                $model = $model->where($key, '=', $value);
+            }
         }
         return $model;
     }
