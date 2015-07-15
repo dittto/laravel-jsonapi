@@ -366,16 +366,13 @@ abstract class Handler
             $directionSymbol = substr($col, 0, 1);
             if ($directionSymbol === "+" || substr($col, 0, 3) === '%2B') {
                 $dir = 'asc';
+                $col = substr($col, 1);
             } elseif ($directionSymbol === "-") {
                 $dir = 'desc';
+                $col = substr($col, 1);
             } else {
-                throw new Exception(
-                    'Sort direction not specified but is required. Expecting "+" or "-".',
-                    static::ERROR_SCOPE | static::ERROR_UNKNOWN_ID,
-                    BaseResponse::HTTP_BAD_REQUEST
-                );
+                $dir = 'asc';
             }
-            $col = substr($col, 1);
             $model = $model->orderBy($col, $dir);
         }
         return $model;
