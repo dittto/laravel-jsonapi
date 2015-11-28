@@ -636,7 +636,21 @@ abstract class Handler
                     foreach ($relation['linkage'] as $link) {
                         $ids[] = $link['id'];
                     }
-                    $model->{$key}()->sync($ids);
+                    if ($model->{$key}() instanceof \Illuminate\Database\Eloquent\Relations\HasMany)
+                    {
+                        // must delete the current and re-insert
+                        $model->{$key}()->delete();
+
+                        $className = get_class($model->{$key}()->getRelated());
+                        $rels = [];
+                        foreach ($ids as $id) {
+                            $rels[] = $className::find($id);
+                        }
+
+                        $model->{$key}()->saveMany($rels);
+                    } else {
+                        $model->{$key}()->sync($ids);
+                    }
                 } else {
                     foreach ($relation['linkage'] as $link) {
                         $model->{$key}()->attach($link['id']);
