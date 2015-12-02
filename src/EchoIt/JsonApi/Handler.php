@@ -639,7 +639,7 @@ abstract class Handler
                     if ($model->{$key}() instanceof \Illuminate\Database\Eloquent\Relations\HasMany)
                     {
                         // must delete the current and re-insert
-                        $model->{$key}()->delete();
+                        $model->{$key}()->whereNotIn('id', $ids)->delete();
 
                         $className = get_class($model->{$key}()->getRelated());
                         $rels = [];
