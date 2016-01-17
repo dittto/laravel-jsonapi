@@ -708,11 +708,28 @@ abstract class Handler
         // save any belongsTo
         $links = $this->_saveAndRemoveToOneRelations($model, $links);
 
-        if (!$model->save()) {
+        try {
+            if (!$model->save()) {
+                throw new Exception(
+                    'An unknown error occurred',
+                    static::ERROR_SCOPE | static::ERROR_UNKNOWN,
+                    BaseResponse::HTTP_INTERNAL_SERVER_ERROR
+                );
+            }
+        } catch (\Illuminate\Database\QueryException $e) {
+
+            // duplicate key
+            if ($e->getCode() == 23000)
+            {
+                $code = BaseResponse::HTTP_CONFLICT;
+            } else {
+                $code = BaseResponse::HTTP_INTERNAL_SERVER_ERROR;
+            }
+
             throw new Exception(
                 'An unknown error occurred',
-                static::ERROR_SCOPE | static::ERROR_UNKNOWN,
-                BaseResponse::HTTP_INTERNAL_SERVER_ERROR
+                static::ERROR_SCOPE | static::ERROR_ID_PROVIDED_NOT_ALLOWED,
+                $code
             );
         }
 
