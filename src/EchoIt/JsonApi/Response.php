@@ -64,9 +64,14 @@ class Response
      */
     public function toJsonResponse($bodyKey = 'data', $options = 0)
     {
-        return new JsonResponse(array_merge(
+        $responseContent = array_merge(
             [ $bodyKey => $this->body ],
             array_filter($this->responseData)
-        ), $this->httpStatusCode, ['Content-Type' => 'application/vnd.api+json'], $options);
+        );
+
+        return new JsonResponse($responseContent, $this->httpStatusCode, [
+            'Content-Type' => 'application/vnd.api+json',
+            'ETag' => md5(json_encode($responseContent))
+        ], $options);
     }
 }
