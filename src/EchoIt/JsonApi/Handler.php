@@ -97,10 +97,28 @@ abstract class Handler
         } else {
             if ($models instanceof Collection) {
                 foreach ($models as $model) {
-                    $models->load($this->exposedRelationsFromRequest());
+
+                    // include any relations exposed by default
+                    $loadedRelations = $model->getRelations();
+                    foreach ($this->exposedRelationsFromRequest() as $relation) {
+
+                        if ( ! array_key_exists($relation, $loadedRelations))
+                        {
+                            $model->load($relation);
+                        }
+                    }
                 }
+
             } else {
-                $models->load($this->exposedRelationsFromRequest());
+                // include any relations exposed by default
+                $loadedRelations = $models->getRelations();
+                foreach ($this->exposedRelationsFromRequest() as $relation) {
+
+                    if ( ! array_key_exists($relation, $loadedRelations))
+                    {
+                        $models->load($relation);
+                    }
+                }
             }
 
             $response = new Response($models, static::successfulHttpStatusCode($this->request->method(), $models));
