@@ -125,8 +125,13 @@ class Model extends \Eloquent
         $arrayableRelations = [];
 
         // include any relations exposed by default
-       foreach ($this->defaultExposedRelations as $relation) {
-            $this->load($relation);
+        $loadedRelations = $this->getRelations();
+        foreach ($this->defaultExposedRelations as $relation) {
+
+            if ( ! array_key_exists($relation, $loadedRelations))
+            {
+                $this->load($relation);
+            }
         }
 
         // fetch the relations that can be represented as an array
